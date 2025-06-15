@@ -1,4 +1,4 @@
-import math
+import math, json
 from typing import Dict, List, Optional, Union
 
 import tiktoken
@@ -10,7 +10,8 @@ from openai import (
     OpenAIError,
     RateLimitError,
 )
-from openai.types.chat import ChatCompletion, ChatCompletionMessage
+from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatCompletionMessageToolCall
+from openai.types.chat.chat_completion_message_tool_call import Function
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -18,7 +19,6 @@ from tenacity import (
     wait_random_exponential,
 )
 
-from app.bedrock import BedrockClient
 from app.config import LLMSettings, config
 from app.exceptions import TokenLimitExceeded
 from app.logger import logger  # Assuming a logger is set up in your app
@@ -220,7 +220,9 @@ class LLM:
                     api_version=self.api_version,
                 )
             elif self.api_type == "aws":
-                self.client = BedrockClient()
+                raise NotImplementedError(
+                    "AWS Bedrock support is not implemented yet. Please use OpenAI or Azure."
+                )
             else:
                 self.client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
 
@@ -393,6 +395,9 @@ class LLM:
                 messages = system_msgs + self.format_messages(messages, supports_images)
             else:
                 messages = self.format_messages(messages, supports_images)
+            
+            # print(">>> LLM PROMPT For Ask (messages):")
+            # print(json.dumps(messages, ensure_ascii=False, indent=2))
 
             # Calculate input token count
             input_tokens = self.count_message_tokens(messages)
@@ -641,6 +646,75 @@ class LLM:
             (OpenAIError, Exception, ValueError)
         ),  # Don't retry TokenLimitExceeded
     )
+
+    async def stream_to_chatcompletion_with_tool(self, **params) -> ChatCompletionMessage:
+        """
+        调用带工具的流式接口，把每个 delta 实时打印
+        并按增量更新 ChatCompletionMessage 结构，最后返回完整消息。
+
+        返回类型: openai.types.chat.ChatCompletionMessage
+        """
+        response = await self.client.chat.completions.create(**params, stream=True)
+
+        # 初始化一个 ChatCompletionMessage，默认 role 为 'assistant' 避免校验错误
+        message: ChatCompletionMessage = ChatCompletionMessage(
+            role="assistant",  # 默认即为 'assistant'
+            content=None,
+            refusal=None,
+            annotations=[],
+            audio=None,
+            function_call=None,
+            tool_calls=[]
+        )
+
+        async for chunk in response:
+            if not chunk.choices or not chunk.choices[0].delta:
+                continue
+
+            delta = chunk.choices[0].delta
+
+            # print(delta, end="\n", flush=True)  # 实时打印每个 delta
+
+            # 实时打印文本增量
+            if delta.content:
+                if message.content is None:
+                    message.content = ""
+                print(delta.content, end="", flush=True)
+                message.content += delta.content
+
+            # 更新 role（尽管一般是 'assistant'）
+            if delta.role is not None:
+                message.role = delta.role
+
+            # # 处理整体函数调用
+            # if delta.function_call:
+            #     name = delta.function_call.name
+            #     args = delta.function_call.arguments or ""
+            #     if message.function_call is None:
+            #         message.function_call = {"name": name, "arguments": args}
+            #     else:
+            #         message.function_call["arguments"] += args
+
+            # 处理工具调用增量
+            if delta.tool_calls:
+                for tc in delta.tool_calls:
+                    idx = tc.index
+                    while len(message.tool_calls) <= idx:
+                        func = Function(name=tc.function.name, arguments="")
+                        message.tool_calls.append(ChatCompletionMessageToolCall(id=tc.id, function=func, type=tc.type))
+                    entry = message.tool_calls[idx]
+                    if tc.function:
+                        if tc.function.name is not None:
+                            entry.function.name = tc.function.name
+                            print(f"\nTool call name: {tc.function.name} with args:", end="", flush=True)
+                        if tc.function.arguments is not None:
+                            entry.function.arguments += tc.function.arguments
+                            print(tc.function.arguments, end="", flush=True)
+
+        print() # 确保最后有一个换行
+        print() # 确保最后有一个换行
+        return message
+
     async def ask_tool(
         self,
         messages: List[Union[dict, Message]],
@@ -648,6 +722,7 @@ class LLM:
         timeout: int = 300,
         tools: Optional[List[dict]] = None,
         tool_choice: TOOL_CHOICE_TYPE = ToolChoice.AUTO,  # type: ignore
+        stream = True,
         temperature: Optional[float] = None,
         **kwargs,
     ) -> ChatCompletionMessage | None:
@@ -686,6 +761,9 @@ class LLM:
                 messages = system_msgs + self.format_messages(messages, supports_images)
             else:
                 messages = self.format_messages(messages, supports_images)
+
+            # print(">>> LLM PROMPT For Ask Tool (messages):")
+            # print(json.dumps(messages, ensure_ascii=False, indent=2))
 
             # Calculate input token count
             input_tokens = self.count_message_tokens(messages)
@@ -727,6 +805,9 @@ class LLM:
                 params["temperature"] = (
                     temperature if temperature is not None else self.temperature
                 )
+            
+            if stream:
+                return await self.stream_to_chatcompletion_with_tool(**params)
 
             params["stream"] = False  # Always use non-streaming for tool requests
             response: ChatCompletion = await self.client.chat.completions.create(

@@ -23,7 +23,7 @@ async def main():
         logger.warning("Operation interrupted.")
     finally:
         # Ensure agent resources are cleaned up before exiting
-        # await agent.cleanup()
+        await agent.cleanup()
         logger.info("Exiting application.")
 
 

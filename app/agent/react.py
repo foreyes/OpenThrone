@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Tuple
 
 from pydantic import Field
 
@@ -23,7 +23,7 @@ class ReActAgent(BaseAgent, ABC):
     current_step: int = 0
 
     @abstractmethod
-    async def think(self) -> bool:
+    async def think(self) -> Tuple[bool, str]:
         """Process current state and decide next action"""
 
     @abstractmethod
@@ -32,7 +32,8 @@ class ReActAgent(BaseAgent, ABC):
 
     async def step(self) -> str:
         """Execute a single step: think and act."""
-        should_act = await self.think()
+        should_act, content = await self.think()
         if not should_act:
-            return "Thinking complete - no action needed"
-        return await self.act()
+            return f"Thinking: {content}\n\nNo action needed"
+        action = await self.act()
+        return f"Thinking: {content}\n\nAction taken: {action}"

@@ -91,12 +91,17 @@ api_key = "sk-..."  # Replace with your actual API key
 
 ## Quick Start
 
-One line for run OpenThrone:
+One line for run generic ToolCall agent:
 
 ```bash
 python main.py
 ```
 
+One line for run Blackjack example:
+
+```bash
+python -m example.blackjack.main
+```
 
 ### Custom Adding Multiple Agents
 

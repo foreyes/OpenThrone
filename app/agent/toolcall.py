@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Union, Tuple
 
 from pydantic import Field
 
@@ -36,7 +36,7 @@ class ToolCallAgent(ReActAgent):
     max_steps: int = 30
     max_observe: Optional[Union[int, bool]] = None
 
-    async def think(self) -> bool:
+    async def think(self) -> Tuple[bool, str]:
         """Process current state and decide next actions using tools"""
         if self.next_step_prompt:
             user_msg = Message.user_message(self.next_step_prompt)
@@ -44,6 +44,8 @@ class ToolCallAgent(ReActAgent):
 
         try:
             # Get response with tool options
+            print(f"\n[{self.name}] ------- Think ------- \n")
+
             response = await self.llm.ask_tool(
                 messages=self.messages,
                 system_msgs=(
@@ -69,7 +71,7 @@ class ToolCallAgent(ReActAgent):
                     )
                 )
                 self.state = AgentState.FINISHED
-                return False
+                return False, ""
             raise
 
         self.tool_calls = tool_calls = (
@@ -100,8 +102,8 @@ class ToolCallAgent(ReActAgent):
                     )
                 if content:
                     self.memory.add_message(Message.assistant_message(content))
-                    return True
-                return False
+                    return True, content
+                return False, content
 
             # Create and add assistant message
             assistant_msg = (
@@ -112,13 +114,13 @@ class ToolCallAgent(ReActAgent):
             self.memory.add_message(assistant_msg)
 
             if self.tool_choices == ToolChoice.REQUIRED and not self.tool_calls:
-                return True  # Will be handled in act()
+                return True, content  # Will be handled in act()
 
             # For 'auto' mode, continue with content if no commands but content exists
             if self.tool_choices == ToolChoice.AUTO and not self.tool_calls:
-                return bool(content)
+                return bool(content), content
 
-            return bool(self.tool_calls)
+            return bool(self.tool_calls), content
         except Exception as e:
             logger.error(f"🚨 Oops! The {self.name}'s thinking process hit a snag: {e}")
             self.memory.add_message(
@@ -126,7 +128,7 @@ class ToolCallAgent(ReActAgent):
                     f"Error encountered while processing: {str(e)}"
                 )
             )
-            return False
+            return False, ""
 
     async def act(self) -> str:
         """Execute tool calls and handle their results"""
@@ -160,6 +162,21 @@ class ToolCallAgent(ReActAgent):
             )
             self.memory.add_message(tool_msg)
             results.append(result)
+        
+        if self.state != AgentState.FINISHED:
+            # take action (not tool call), request to llm
+            print(f"\n[{self.name}] ------- Act ------- \n")
+
+            response = await self.llm.ask(
+                messages=self.messages,
+                system_msgs=(
+                    [Message.system_message(self.system_prompt)]
+                    if self.system_prompt
+                    else None
+                ),
+            )
+            self.memory.add_message(Message.assistant_message(response))
+            results.append(response)
 
         return "\n\n".join(results)
 
@@ -178,6 +195,7 @@ class ToolCallAgent(ReActAgent):
 
             # Execute the tool
             logger.info(f"🔧 Activating tool: '{name}'...")
+            print(f"🔧 Activating tool: '{name}'...")
             result = await self.available_tools.execute(name=name, tool_input=args)
 
             # Handle special tools
