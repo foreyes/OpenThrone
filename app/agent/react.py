@@ -34,6 +34,6 @@ class ReActAgent(BaseAgent, ABC):
         """Execute a single step: think and act."""
         should_act, content = await self.think()
         if not should_act:
-            return f"Thinking: {content}\n\nNo action needed"
+            return f"<Thinking>\n{content}\n\n<Action>\nNo action needed"
         action = await self.act()
-        return f"Thinking: {content}\n\nAction taken: {action}"
+        return f"<Thinking>\n{content}\n\n<Action>\n{action}"

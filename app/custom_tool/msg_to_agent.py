@@ -8,7 +8,7 @@ class MsgToAgent(BaseTool):
     """Add a tool to communicate with other agent."""
 
     name: str = "msg_to_agent"
-    description: str = "Use this tool to communicate with other agent. Agent list: {agent_list}"
+    description: str = "Use this tool to communicate with other agent, and get the response. Agent list: {agent_list}"
     parameters: str = {
         "type": "object",
         "properties": {

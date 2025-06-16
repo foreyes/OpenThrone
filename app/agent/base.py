@@ -151,6 +151,7 @@ class BaseAgent(BaseModel, ABC):
                 self.state = AgentState.IDLE
                 results.append(f"Terminated: Reached max steps ({self.max_steps})")
         await SANDBOX_CLIENT.cleanup()
+        self.state = AgentState.IDLE  # Reset state after execution
         return "\n".join(results) if results else "No steps executed"
 
     @abstractmethod

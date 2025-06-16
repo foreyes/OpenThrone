@@ -44,7 +44,7 @@ class ToolCallAgent(ReActAgent):
 
         try:
             # Get response with tool options
-            print(f"\n[{self.name}] ------- Think ------- \n")
+            print(f"\n[{self.name}] ------- Think ------- \n", flush=True)
 
             response = await self.llm.ask_tool(
                 messages=self.messages,
@@ -165,7 +165,7 @@ class ToolCallAgent(ReActAgent):
         
         if self.state != AgentState.FINISHED:
             # take action (not tool call), request to llm
-            print(f"\n[{self.name}] ------- Act ------- \n")
+            print(f"\n[{self.name}] ------- Act ------- \n", flush=True)
 
             response = await self.llm.ask(
                 messages=self.messages,
