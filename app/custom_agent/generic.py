@@ -43,6 +43,9 @@ class SimpleGenericAgent(ReActAgent):
 
 
     async def think(self) -> Tuple[bool, str]:
+        # if self.tool_calls:
+        #     return True, "Need to execute all tool calls before thinking again."
+
         """Process current state and decide next action"""
         print(f"\n[{self.name}] ------- Think ------- \n", flush=True)
 
@@ -115,12 +118,54 @@ class SimpleGenericAgent(ReActAgent):
             self.memory.add_message(tool_msg)
             results.append(result)
         
+        self.tool_calls = []  # Clear tool calls after execution
+        
         messages = self.messages
         if self.act_hint_prompt:
             messages += Message.user_message(self.act_hint_prompt)
 
         if self.state != AgentState.FINISHED:
-            # take action (not tool call), request to llm
+            # # take action (not tool call), request to llm
+            # success, response = await self.handle_llm_ask_tool(
+            #     messages=messages,
+            #     system_msgs=(
+            #         [Message.system_message(self.system_prompt)]
+            #         if self.system_prompt
+            #         else None
+            #     ),
+            #     tools=self.available_tools.to_params(),
+            #     tool_choice=self.tool_choices,
+            # )
+            # if not success:
+            #     raise RuntimeError(f"❗️ {self.name} failed to get a response from the LLM")
+            
+            # self.tool_calls = tool_calls = (
+            #     response.tool_calls if response and response.tool_calls else []
+            # )
+            # content = response.content if response and response.content else ""
+            
+            # try:
+            #     # Handle no tool call branch
+            #     if not tool_calls:
+            #         if content:
+            #             self.memory.add_message(Message.assistant_message(content))
+            #             return True, content
+            #         return False, ""
+                
+            #     # Handle tool call branch
+            #     assistant_msg = (
+            #         Message.from_tool_calls(content=content, tool_calls=self.tool_calls)
+            #         if self.tool_calls
+            #         else Message.assistant_message(content)
+            #     )
+            #     self.memory.add_message(assistant_msg)
+            # except Exception as e:
+            #     logger.error(f"Error processing tool calls: {e}")
+            #     raise e
+
+            # if content:
+            #     results.append(content)
+
             success, response = await self.handle_llm_ask(
                 messages=messages,
                 system_msgs=(

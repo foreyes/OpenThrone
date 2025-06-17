@@ -3,7 +3,7 @@ import asyncio
 
 from app.logger import logger
 from app.agent_manager import AgentManager
-from app.tool import ToolCollection, Terminate
+from app.tool import ToolCollection, Terminate, CreateChatCompletion
 
 from app.custom_agent import SimpleGenericAgent
 from app.custom_tool import MsgToAgent
@@ -23,18 +23,30 @@ HOST_USER_THINK_HINT_PROMPT = """If you don't know what todo, think about that: 
 If you think everthing is finished and want to quit the game, use `terminate` tool/function call.
 """
 
+# PLAYER_SYSTEM_PROMPT = """You are an AI agent designed to play the game of Blackjack.
+# Your role is to follow the instructions given by the game host, and decide what you do.
+# 1. Analyze the current game state and decide your next action.
+# 2. The game is Bo5 without reshuffling the deck, you need to remember what's going on.
+# 3. You can't use `terminate` tool without giving out any response.
+# """
+
 PLAYER_SYSTEM_PROMPT = """You are an AI agent designed to play the game of Blackjack.
 Your role is to follow the instructions given by the game host, and decide what you do.
 1. Analyze the current game state and decide your next action.
 2. The game is Bo5 without reshuffling the deck, you need to remember what's going on.
-3. If you want to take an action, just say it, and use `terminate` tool with status `success`.
 """
 
-PLAYER_USER_THINK_HINT_PROMPT = """Think about that: based on the current game state, what is your next action?
-You have to response with your thoughts and actions, and use the `terminate` tool with status `success` at the same time to finish your current work and response to the host.
-If you are only informed of certain things without being asked to take any action, you need to provide feedback of 'understood' (regardless of whether you decide to call any tools).
-You can only use `terminate` tool after or at the same time that you give out any response.
-"""
+# PLAYER_USER_THINK_HINT_PROMPT = """Think about that: based on the current game state, what is your next action?
+# You have to response with your thoughts and actions, and then use the `terminate` tool with status `success` at the same time to finish your current work and response to the host.
+# If you are only informed of certain things without being asked to take any action, you need to provide feedback of 'understood' (regardless of whether you decide to call any tools).
+# You can only use `terminate` tool after or at the same time that you give out any response.
+# """
+
+# PLAYER_USER_THINK_HINT_PROMPT = """Think about that: based on the current game state, what is your next action? You MUST give out your thoughts and decisions explicitly."""
+
+PLAYER_USER_THINK_HINT_PROMPT = """Think about that: based on the current game state, what is your next action?"""
+
+# PLAYER_SELF_THINK_NEXT_HINT_PROMPT = """I **MUST** make sure that I have given out my thoughts and decisions before using the `terminate` tool with status `success`."""
 
 async def main():
     """Run blackjack example."""
@@ -49,6 +61,7 @@ async def main():
         system_prompt=HOST_SYSTEM_PROMPT,
         user_think_hint_prompt=HOST_USER_THINK_HINT_PROMPT,
     )
+
     alice = SimpleGenericAgent(
         name="Alice",
         description="AI player for blackjack game, follow the instruction given by host, and decide what to do.",
@@ -58,6 +71,8 @@ async def main():
         system_prompt=PLAYER_SYSTEM_PROMPT,
         user_think_hint_prompt=PLAYER_USER_THINK_HINT_PROMPT,
     )
+    # alice.self_think_next_hint_prompt += "\n" + PLAYER_SELF_THINK_NEXT_HINT_PROMPT
+
     bob = SimpleGenericAgent(
         name="Bob",
         description="AI player for blackjack game, follow the instruction given by host, and decide what to do.",
@@ -67,6 +82,7 @@ async def main():
         system_prompt=PLAYER_SYSTEM_PROMPT,
         user_think_hint_prompt=PLAYER_USER_THINK_HINT_PROMPT,
     )
+    # bob.self_think_next_hint_prompt += "\n" + PLAYER_SELF_THINK_NEXT_HINT_PROMPT
 
     # Register agents with the global agent manager
     AgentManager.register_agent(host)

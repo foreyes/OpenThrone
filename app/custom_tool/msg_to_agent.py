@@ -42,5 +42,7 @@ class MsgToAgent(BaseTool):
         request: str = f"Agent {your_name} send message for you, and you have to response that: {message}\n"
         response = await agent.run(request)
 
+        print(f"\n[{self.name}] ------- Continue ------- \n", flush=True)
+
         return f"Agent {agent_name} response: {response}"
 
